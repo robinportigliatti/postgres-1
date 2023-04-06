@@ -48,12 +48,33 @@ struct _param
 	int			verbose;
 	int			dry_run;
 	long		transaction_limit;
+    char       *schema;
+    char       *table;
 };
 
 static int	vacuumlo(const char *database, const struct _param *param);
 static void usage(const char *progname);
 
+static int vacuum_temp_table(PGconn *conn)
+{
+    char buf[256];
+    PGresult *res;
 
+    buf[0] = '\0';
+    strcat(buf, "ANALYZE vacuum_l");
+    res = PQexec(conn, buf);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        pg_log_error("failed to vacuum temp table: %s", PQerrorMessage(conn));
+        PQclear(res);
+        PQfinish(conn);
+        return -1;
+    }
+    PQclear(res);
+
+    return 0;
+}
 
 /*
  * This vacuums LOs of one database. It returns 0 on success, -1 on failure.
@@ -169,17 +190,12 @@ vacuumlo(const char *database, const struct _param *param)
 	 * Analyze the temp table so that planner will generate decent plans for
 	 * the DELETEs below.
 	 */
-	buf[0] = '\0';
-	strcat(buf, "ANALYZE vacuum_l");
-	res = PQexec(conn, buf);
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
-		pg_log_error("failed to vacuum temp table: %s", PQerrorMessage(conn));
-		PQclear(res);
-		PQfinish(conn);
-		return -1;
-	}
-	PQclear(res);
+	int result = vacuum_temp_table(conn);
+
+    if (result != 0)
+    {
+        return -1;
+    }
 
 	/*
 	 * Now find any candidate tables that have columns of type oid.
@@ -200,6 +216,20 @@ vacuumlo(const char *database, const struct _param *param)
 	strcat(buf, "      AND t.typname in ('oid', 'lo') ");
 	strcat(buf, "      AND c.relkind in (" CppAsString2(RELKIND_RELATION) ", " CppAsString2(RELKIND_MATVIEW) ")");
 	strcat(buf, "      AND s.nspname !~ '^pg_'");
+    if (param->schema != NULL)
+    {
+        strcat(buf, "      AND s.nspname = '");
+        strcat(buf, param->schema);
+        strcat(buf, "'");
+    }
+
+    if (param->table != NULL)
+    {
+        strcat(buf, "      AND c.table = '");
+        strcat(buf, param->table);
+        strcat(buf, "'");
+    }
+
 	res = PQexec(conn, buf);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
@@ -238,9 +268,9 @@ vacuumlo(const char *database, const struct _param *param)
 		}
 
 		snprintf(buf, BUFSIZE,
-				 "DELETE FROM vacuum_l "
-				 "WHERE lo IN (SELECT %s FROM %s.%s)",
-				 field, schema, table);
+				 "DELETE FROM vacuum_l v"
+				 "WHERE EXISTS (SELECT 1 FROM %s.%s %s_%s WHERE v.lo = %s)",
+				 schema, table, field, field);
 		res2 = PQexec(conn, buf);
 		if (PQresultStatus(res2) != PGRES_COMMAND_OK)
 		{
@@ -255,6 +285,12 @@ vacuumlo(const char *database, const struct _param *param)
 			return -1;
 		}
 		PQclear(res2);
+        result = vacuum_temp_table(conn);
+
+        if (result != 0)
+        {
+            return -1;
+        }
 
 		PQfreemem(schema);
 		PQfreemem(table);
@@ -418,7 +454,9 @@ usage(const char *progname)
 	printf("Options:\n");
 	printf("  -l, --limit=LIMIT         commit after removing each LIMIT large objects\n");
 	printf("  -n, --dry-run             don't remove large objects, just show what would be done\n");
-	printf("  -v, --verbose             write a lot of progress messages\n");
+    printf("  -s, --schema              only run vacuumlo on the tables of specified schema\n");
+    printf("  -t, --table               only run vacuumlo on the specified table\n");
+    printf("  -v, --verbose             write a lot of progress messages\n");
 	printf("  -V, --version             output version information, then exit\n");
 	printf("  -?, --help                show this help, then exit\n");
 	printf("\nConnection options:\n");
@@ -441,6 +479,8 @@ main(int argc, char **argv)
 		{"limit", required_argument, NULL, 'l'},
 		{"dry-run", no_argument, NULL, 'n'},
 		{"port", required_argument, NULL, 'p'},
+        {"schema", required_argument, NULL, 's'},
+        {"table", required_argument, NULL, 't'},
 		{"username", required_argument, NULL, 'U'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"version", no_argument, NULL, 'V'},
@@ -469,6 +509,8 @@ main(int argc, char **argv)
 	param.verbose = 0;
 	param.dry_run = 0;
 	param.transaction_limit = 1000;
+	param.schema = NULL;
+	param.table = NULL;
 
 	/* Process command-line arguments */
 	if (argc > 1)
@@ -507,6 +549,12 @@ main(int argc, char **argv)
 					pg_fatal("invalid port number: %s", optarg);
 				param.pg_port = pg_strdup(optarg);
 				break;
+            case 's':
+                param.schema = pg_strdup(optarg);
+                break;
+            case 't':
+                param.table = pg_strdup(optarg);
+                break;
 			case 'U':
 				param.pg_user = pg_strdup(optarg);
 				break;
