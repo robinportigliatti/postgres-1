@@ -54,10 +54,11 @@ struct _param
     char       *exclude_table;
 };
 
-static int	vacuumlo(const char *database, const struct _param *param);
+static int vacuum_temp_table(const PGconn *conn);
+static int vacuumlo(const char *database, const struct _param *param);
 static void usage(const char *progname);
 
-static int vacuum_temp_table(PGconn *conn)
+static int vacuum_temp_table(const PGconn *conn)
 {
     char buf[256];
     PGresult *res;
