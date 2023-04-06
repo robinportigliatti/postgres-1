@@ -59,22 +59,23 @@ static void usage(const char *progname);
 
 static int vacuum_temp_table(PGconn *conn)
 {
-	char buf[256];
-	PGresult *res;
+    char buf[256];
+    PGresult *res;
 
-	buf[0] = '\0';
-	strcat(buf, "ANALYZE vacuum_l");
-	res = PQexec(conn, buf);
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
-		pg_log_error("failed to vacuum temp table: %s", PQerrorMessage(conn));
-		PQclear(res);
-		PQfinish(conn);
-		return -1;
-	}
-	
-	PQclear(res);
-	return 0;
+    buf[0] = '\0';
+    strcat(buf, "ANALYZE vacuum_l");
+    res = PQexec(conn, buf);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+        pg_log_error("failed to vacuum temp table: %s", PQerrorMessage(conn));
+        PQclear(res);
+        PQfinish(conn);
+        return -1;
+    }
+    PQclear(res);
+
+    return 0;
 }
 
 /*
@@ -93,8 +94,7 @@ vacuumlo(const char *database, const struct _param *param)
 	bool		new_pass;
 	bool		success = true;
 	static char *password = NULL;
-	int result;
-	
+
 	/* Note: password can be carried over from a previous call */
 	if (param->pg_prompt == TRI_YES && !password)
 		password = simple_prompt("Password: ", false);
@@ -192,11 +192,12 @@ vacuumlo(const char *database, const struct _param *param)
 	 * Analyze the temp table so that planner will generate decent plans for
 	 * the DELETEs below.
 	 */
-	result = vacuum_temp_table(conn);
-	if (result != 0)
-	{
-		return -1;
-	}
+	int result = vacuum_temp_table(conn);
+
+    if (result != 0)
+    {
+        return -1;
+    }
 
 	/*
 	 * Now find any candidate tables that have columns of type oid.
@@ -217,33 +218,33 @@ vacuumlo(const char *database, const struct _param *param)
 	strcat(buf, "      AND t.typname in ('oid', 'lo') ");
 	strcat(buf, "      AND c.relkind in (" CppAsString2(RELKIND_RELATION) ", " CppAsString2(RELKIND_MATVIEW) ")");
 	strcat(buf, "      AND s.nspname !~ '^pg_'");
-	if (param->schema != NULL)
-	{
-		strcat(buf, "      AND s.nspname = '");
-		strcat(buf, param->schema);
-		strcat(buf, "'");
-	}
+    if (param->schema != NULL)
+    {
+        strcat(buf, "      AND s.nspname = '");
+        strcat(buf, param->schema);
+        strcat(buf, "'");
+    }
 
-	if (param->table != NULL)
-	{
-		strcat(buf, "      AND c.table = '");
-		strcat(buf, param->table);
-		strcat(buf, "'");
-	}
+    if (param->table != NULL)
+    {
+        strcat(buf, "      AND c.table = '");
+        strcat(buf, param->table);
+        strcat(buf, "'");
+    }
     
-	if (param->exclude_schema != NULL)
-	{
-		strcat(buf, "      AND s.nspname <> '");
-		strcat(buf, param->exclude_schema);
-		strcat(buf, "'");
-	}
+    if (param->exclude_schema != NULL)
+    {
+        strcat(buf, "      AND s.nspname <> '");
+        strcat(buf, param->exclude_schema);
+        strcat(buf, "'");
+    }
 
-	if (param->exclude_table != NULL)
-	{
-		strcat(buf, "      AND c.table <> '");
-		strcat(buf, param->exclude_table);
-		strcat(buf, "'");
-	}
+    if (param->exclude_table != NULL)
+    {
+        strcat(buf, "      AND c.table <> '");
+        strcat(buf, param->exclude_table);
+        strcat(buf, "'");
+    }
 
 	res = PQexec(conn, buf);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -299,13 +300,13 @@ vacuumlo(const char *database, const struct _param *param)
 			PQfreemem(field);
 			return -1;
 		}
-		
 		PQclear(res2);
-		result = vacuum_temp_table(conn);
-		if (result != 0)
-		{
-			return -1;
-		}
+        result = vacuum_temp_table(conn);
+
+        if (result != 0)
+        {
+            return -1;
+        }
 
 		PQfreemem(schema);
 		PQfreemem(table);
@@ -467,13 +468,13 @@ usage(const char *progname)
 	printf("%s removes unreferenced large objects from databases.\n\n", progname);
 	printf("Usage:\n  %s [OPTION]... DBNAME...\n\n", progname);
 	printf("Options:\n");
-	printf("  -l, --limit=LIMIT                 commit after removing each LIMIT large objects\n");
+    printf("  -l, --limit=LIMIT                 commit after removing each LIMIT large objects\n");
 	printf("  -n, --dry-run                     don't remove large objects, just show what would be done\n");
 	printf("  -s, --schema=nspname              only run vacuumlo on the tables of specified schema\n");
 	printf("  -S, --exclude-schema=nspname      vacuumlo won't run on this specific schema\n");
-	printf("  -t, --table=relname               only run vacuumlo on the specified table\n");
-	printf("  -T, --exclude-table=relname       vacuumlo won't run on this specific table\n");
-	printf("  -v, --verbose                     write a lot of progress messages\n");
+    printf("  -t, --table=relname               only run vacuumlo on the specified table or materialized view\n");
+	printf("  -T, --exclude-table=relname       vacuumlo won't run on this specific table or materialized view\n");
+    printf("  -v, --verbose                     write a lot of progress messages\n");
 	printf("  -V, --version                     output version information, then exit\n");
 	printf("  -?, --help                        show this help, then exit\n");
 	printf("\nConnection options:\n");
@@ -496,10 +497,10 @@ main(int argc, char **argv)
 		{"limit", required_argument, NULL, 'l'},
 		{"dry-run", no_argument, NULL, 'n'},
 		{"port", required_argument, NULL, 'p'},
-		{"schema", required_argument, NULL, 's'},
-		{"exclude-schema", required_argument, NULL, 'S'},
-		{"table", required_argument, NULL, 't'},
-		{"exclude-table", required_argument, NULL, 'T'},
+        {"schema", required_argument, NULL, 's'},
+        {"exclude-schema", required_argument, NULL, 'S'},
+        {"table", required_argument, NULL, 't'},
+        {"exclude-table", required_argument, NULL, 'T'},
 		{"username", required_argument, NULL, 'U'},
 		{"verbose", no_argument, NULL, 'v'},
 		{"version", no_argument, NULL, 'V'},
@@ -570,18 +571,18 @@ main(int argc, char **argv)
 					pg_fatal("invalid port number: %s", optarg);
 				param.pg_port = pg_strdup(optarg);
 				break;
-			case 's':
-				param.schema = pg_strdup(optarg);
-				break;
-			case 'S':
-				param.exclude_schema = pg_strdup(optarg);
-				break;
-			case 't':
-				param.table = pg_strdup(optarg);
-				break;
-			case 'T':
-				param.exclude_table = pg_strdup(optarg);
-				break;
+            case 's':
+                param.schema = pg_strdup(optarg);
+                break;
+            case 'S':
+                param.exclude_schema = pg_strdup(optarg);
+                break;
+            case 't':
+                param.table = pg_strdup(optarg);
+                break;
+            case 'T':
+                param.exclude_table = pg_strdup(optarg);
+                break;
 			case 'U':
 				param.pg_user = pg_strdup(optarg);
 				break;
