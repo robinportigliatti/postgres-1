@@ -454,8 +454,8 @@ usage(const char *progname)
 	printf("Options:\n");
 	printf("  -l, --limit=LIMIT         commit after removing each LIMIT large objects\n");
 	printf("  -n, --dry-run             don't remove large objects, just show what would be done\n");
-    printf("  -s, --schema              only run vacuumlo on the tables of specified schema\n");
-    printf("  -t, --table               only run vacuumlo on the specified table\n");
+    printf("  -s, --schema=nspname              only run vacuumlo on the tables of specified schema\n");
+    printf("  -t, --table=relname               only run vacuumlo on the specified table\n");
     printf("  -v, --verbose             write a lot of progress messages\n");
 	printf("  -V, --version             output version information, then exit\n");
 	printf("  -?, --help                show this help, then exit\n");
