@@ -288,7 +288,7 @@ vacuumlo(const char *database, const struct _param *param)
 		snprintf(buf, BUFSIZE,
 				 "DELETE FROM vacuum_l v"
 				 "WHERE EXISTS (SELECT 1 FROM %s.%s %s_%s WHERE v.lo = %s)",
-				 schema, table, field, field);
+				 schema, table, table, field, field);
 		res2 = PQexec(conn, buf);
 		if (PQresultStatus(res2) != PGRES_COMMAND_OK)
 		{
