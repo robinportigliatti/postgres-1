@@ -95,6 +95,7 @@ vacuumlo(const char *database, const struct _param *param)
 	bool		new_pass;
 	bool		success = true;
 	static char *password = NULL;
+	int result;
 
 	/* Note: password can be carried over from a previous call */
 	if (param->pg_prompt == TRI_YES && !password)
@@ -193,7 +194,7 @@ vacuumlo(const char *database, const struct _param *param)
 	 * Analyze the temp table so that planner will generate decent plans for
 	 * the DELETEs below.
 	 */
-	int result = vacuum_temp_table(conn);
+	result = vacuum_temp_table(conn);
 
     if (result != 0)
     {
